@@ -1,0 +1,12 @@
+/Manifest.toml
+*.mp4
+*.gif
+*.png
+*.pdf
+*.mat
+.DS_Store
+
+# Research prototypes retained locally at the repository root. The supported
+# package lives in src/, examples/, and test/.
+/*.jl
+/*.m
