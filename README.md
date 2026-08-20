@@ -22,41 +22,39 @@ symbols, or the output of your preferred clustering method.
 The package is not registered in Julia's General registry yet, so
 `Pkg.add("GraphReductionPlots")` will not work by name.
 
-To use this checkout directly from the repository root:
+Install the package directly from GitHub and add a Makie rendering backend:
 
-```powershell
-julia --project=. -e "using Pkg; Pkg.instantiate()"
-julia --project=. examples/custom_template.jl
+```julia
+using Pkg
+Pkg.add(url="https://github.com/OmidMkht/GraphReductionPlots.jl.git")
+Pkg.add("CairoMakie")
 ```
 
-To make the local checkout available in your default Julia environment, run:
-
-```powershell
-julia -e 'using Pkg; Pkg.develop(path=raw"C:\Users\omokhtar\graph_clustering_plots"); Pkg.add("CairoMakie")'
-```
-
-Then it can be used from any Julia session with:
+Then load the package with:
 
 ```julia
 using CairoMakie
 using GraphReductionPlots
 ```
 
-Once the repository is published at its final GitHub URL, install it with:
+For local development, clone the repository and run the package tests:
 
-```julia
-using Pkg
-Pkg.add(url="https://github.com/OmidMkht/GraphReductionPlots.jl.git")
-Pkg.add("CairoMakie") # one plotting backend
+```powershell
+git clone https://github.com/OmidMkht/GraphReductionPlots.jl.git
+Set-Location GraphReductionPlots.jl
+julia --project=. -e 'using Pkg; Pkg.instantiate(); Pkg.test()'
 ```
 
-When developing from a local clone:
+The examples use their own environment. Set it up once, then use the unified
+runner:
 
-```julia
-using Pkg
-Pkg.activate(".")
-Pkg.instantiate()
-Pkg.test()
+```powershell
+julia --project=examples examples/setup.jl
+julia --project=examples examples/run_examples.jl basic
+julia --project=examples examples/run_examples.jl transmission
+julia --project=examples examples/run_examples.jl optikron
+julia --project=examples examples/run_examples.jl matrices
+julia --project=examples examples/run_examples.jl all
 ```
 
 ## Quick start
@@ -232,7 +230,7 @@ community centroids.
 - `record_animation(animation, filename; ...)` writes MP4, GIF, or another
   format supported by the active Makie backend.
 
-See [`examples/basic.jl`](examples/basic.jl) for a complete runnable example.
+See [`docs/EXAMPLES.md`](docs/EXAMPLES.md) for setup instructions and the complete example catalog.
 
 ## Use your own data
 

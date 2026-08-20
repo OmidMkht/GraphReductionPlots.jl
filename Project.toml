@@ -1,6 +1,6 @@
 name = "GraphReductionPlots"
 uuid = "bca7d92b-6f3b-4a50-a5c1-97c63bfaf36e"
-authors = ["Opti-KRON contributors"]
+authors = ["Omid Mokhtari"]
 version = "0.1.0"
 
 [deps]
@@ -10,6 +10,7 @@ Makie = "ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a"
 NetworkLayout = "46757867-2c16-5918-afeb-47bfcb05e46a"
 
 [compat]
+CairoMakie = "0.13, 0.14, 0.15"
 Colors = "0.12, 0.13"
 Graphs = "1"
 Makie = "0.21, 0.22, 0.23, 0.24"

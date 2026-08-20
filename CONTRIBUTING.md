@@ -1,15 +1,31 @@
 # Contributing
 
-Issues and pull requests are welcome. Please keep the core independent of any
-particular clustering algorithm and avoid committing generated media or private
-datasets.
+Issues and pull requests are welcome. Keep the core independent of any
+particular clustering algorithm, and do not commit generated media, local
+manifests, private datasets, or solver logs.
 
-Run the test suite before opening a pull request:
+## Run the package tests
 
-```julia
-using Pkg
-Pkg.test()
+From the repository root:
+
+```powershell
+julia --project=. -e 'using Pkg; Pkg.instantiate(); Pkg.test()'
 ```
 
-For visual changes, also run `examples/basic.jl` with CairoMakie and inspect
-both the layered image and at least one exported animation.
+## Check visual changes
+
+Set up the dedicated example environment once:
+
+```powershell
+julia --project=examples examples/setup.jl
+```
+
+Then run either one example or the full suite:
+
+```powershell
+julia --project=examples examples/run_examples.jl basic
+julia --project=examples examples/run_examples.jl all
+```
+
+Inspect the generated PNG, GIF, and MP4 files before opening a pull request.
+Generated outputs are ignored by Git.

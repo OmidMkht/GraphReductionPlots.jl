@@ -1,46 +1,55 @@
 # GraphReductionPlots examples and case studies
 
-The repository includes three levels of examples:
+The repository includes reusable synthetic, matrix-input, and research-derived
+examples.
 
 | Example | Size | Purpose |
 |---|---:|---|
 | `basic.jl` | 18 vertices | Minimal API demonstration using a synthetic barbell graph |
-| `transmission_case118.jl` | 118 buses | Real transmission-network community contraction |
-| `optikron_case100.jl` | 100 nodes | Distribution-network reduction derived from Opti-KRON data |
 | `matrix_inputs.jl` | 4 vertices | Weighted adjacency and directed incidence inputs |
+| `transmission_case118.jl` | 118 buses | Transmission-network community contraction |
+| `optikron_case100.jl` | 100 nodes | Distribution-network reduction derived from Opti-KRON data |
+| `custom_template.jl` | user-defined | Starting point for a new dataset |
 
-Run an example from the repository root after installing CairoMakie:
+## Set up the example environment
 
-```julia
-using Pkg
-Pkg.activate(".")
-Pkg.instantiate()
-Pkg.add("CairoMakie")
+From the repository root, run:
 
-include("examples/transmission_case118.jl")
+```powershell
+julia --project=examples examples/setup.jl
 ```
 
-The matrix example can be run with:
+This develops the local GraphReductionPlots package into the example
+environment and installs CairoMakie and Graphs. The generated
+`examples/Manifest.toml` is intentionally ignored.
 
-```julia
-include("examples/matrix_inputs.jl")
+## Run examples
+
+Use the unified runner:
+
+```powershell
+julia --project=examples examples/run_examples.jl basic
+julia --project=examples examples/run_examples.jl matrices
+julia --project=examples examples/run_examples.jl transmission
+julia --project=examples examples/run_examples.jl optikron
+julia --project=examples examples/run_examples.jl all
 ```
 
-For a user-owned network, start with
-[`examples/custom_template.jl`](../examples/custom_template.jl). It is
-designed to be copied and edited rather than selected through the example
-runner.
+For a user-owned network, copy
+[`examples/custom_template.jl`](../examples/custom_template.jl) and replace
+its input section.
 
-Each case writes a layered PNG, MP4, and GIF beside its example script. These
-generated files are ignored by Git.
+The examples write layered PNG files and, where applicable, MP4 and GIF
+animations. Generated outputs are ignored by Git.
 
 ## Data convention
 
-Every fixture separates topology from clustering:
+Each research fixture separates topology from clustering:
 
-- an edge file contains integer source/destination vertex IDs;
+- an edge file contains integer source and destination vertex IDs;
 - a membership file maps every vertex to a community label;
 - labels may be non-contiguous because `contraction_data` normalizes them.
 
-This format keeps examples independent of MATPOWER, MATLAB, MAT.jl, and the
-optimization code that originally produced the reductions.
+This keeps the public examples independent of MATPOWER, MATLAB, MAT.jl,
+optimization solvers, and the research code that originally produced the
+reductions.

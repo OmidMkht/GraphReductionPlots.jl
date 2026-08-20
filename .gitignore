@@ -1,12 +1,18 @@
 /Manifest.toml
-*.mp4
-*.gif
-*.png
-*.pdf
-*.mat
-.DS_Store
+/examples/Manifest.toml
 
-# Research prototypes retained locally at the repository root. The supported
-# package lives in src/, examples/, and test/.
-/*.jl
-/*.m
+# Generated example media
+/examples/*.mp4
+/examples/*.gif
+/examples/*.png
+/examples/*.pdf
+
+# Local coverage and editor files
+/coverage/
+*.cov
+*.jl.cov
+.DS_Store
+.vscode/
+
+# Research data formats should not be added accidentally
+*.mat
