@@ -1,0 +1,10 @@
+[deps]
+CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0"
+GraphReductionPlots = "bca7d92b-6f3b-4a50-a5c1-97c63bfaf36e"
+Graphs = "86223c79-3864-5bf0-83f7-82e725a168b6"
+
+[compat]
+CairoMakie = "0.15"
+GraphReductionPlots = "0.1"
+Graphs = "1"
+julia = "1.10"

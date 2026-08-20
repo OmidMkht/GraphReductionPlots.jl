@@ -21,8 +21,8 @@ add_edge!(graph, 10, 11)
 membership = [fill(:left, 8); fill(:bridge, 2); fill(:right, 8)]
 
 figure = layeredplot(graph, membership)
-save("layered_contraction.png", figure)
+save(joinpath(@__DIR__, "layered_contraction.png"), figure)
 
 animation = animate_contraction(graph, membership; title="Community contraction")
-record_animation(animation, "community_contraction.mp4")
-record_animation(animation, "community_contraction.gif"; duration=4, framerate=20)
+record_animation(animation, joinpath(@__DIR__, "community_contraction.mp4"))
+record_animation(animation, joinpath(@__DIR__, "community_contraction.gif"); duration=4, framerate=20)
