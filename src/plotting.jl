@@ -15,21 +15,29 @@ function _coordinates(graph, ::Nothing; iterations=500, layout=:stress)
     return Float64[first(point) for point in points], Float64[last(point) for point in points]
 end
 
-function _coordinates(graph, coordinates::Tuple; iterations=500, layout=:stress)
+_coordinates(graph, coordinates::Union{Tuple,AbstractVector}; iterations=500, layout=:stress) =
+    _given_coordinates(coordinates, nv(graph))
+
+function _given_coordinates(coordinates::Tuple, n)
     length(coordinates) == 2 || throw(ArgumentError("coordinates must be (x, y)"))
     x, y = Float64.(coordinates[1]), Float64.(coordinates[2])
-    length(x) == nv(graph) == length(y) || throw(DimensionMismatch("coordinates must match graph size"))
+    length(x) == n == length(y) || throw(DimensionMismatch("coordinates must match graph size"))
     return x, y
 end
 
-function _coordinates(graph, coordinates::AbstractVector; iterations=500, layout=:stress)
-    length(coordinates) == nv(graph) || throw(DimensionMismatch("coordinates must match graph size"))
+function _given_coordinates(coordinates::AbstractVector, n)
+    length(coordinates) == n || throw(DimensionMismatch("coordinates must match graph size"))
     return Float64[p[1] for p in coordinates], Float64[p[2] for p in coordinates]
 end
 
+# Position of each reduced vertex: given coordinates, the representative
+# vertex's own position, or (default) the centroid of its community.
 function _reduced_coordinates(data, x, y, coordinates; layout=:stress)
-    coordinates !== nothing && return _coordinates(data.reduced, coordinates; layout=layout)
-    k = nv(data.reduced)
+    k = length(data.representatives)
+    coordinates === :representatives && return x[data.representatives], y[data.representatives]
+    coordinates isa Symbol && throw(ArgumentError(
+        "reduced_coordinates must be nothing, :representatives, or coordinates"))
+    coordinates !== nothing && return _given_coordinates(coordinates, k)
     return ([sum(x[data.membership .== i]) / count(==(i), data.membership) for i in 1:k],
             [sum(y[data.membership .== i]) / count(==(i), data.membership) for i in 1:k])
 end
@@ -42,6 +50,16 @@ function _is_white(color)
     catch
         return false
     end
+end
+
+# A palette entry as a color without alpha. Palettes may hold names such as :red.
+_as_color(color::Colorant) = color
+_as_color(color) = RGB(Makie.to_color(color))
+
+# The color as RGBA, with its alpha multiplied by `factor`.
+function _with_alpha(color, factor)
+    rgba = Makie.to_color(color)
+    return RGBAf(rgba.r, rgba.g, rgba.b, rgba.alpha * factor)
 end
 
 function _assert_nonwhite(color, name)
@@ -70,12 +88,65 @@ function _automatic_view(spanx, spany)
     return azimuth, elevation
 end
 
-function _automatic_connectors(data)
-    original_vertices = nv(data.original)
-    contracted_vertices = nv(data.reduced)
-    reduction_ratio = original_vertices / contracted_vertices
-    return original_vertices <= 80 && original_vertices * contracted_vertices <= 300 &&
-           reduction_ratio <= 5 && ne(data.original) <= 5 * original_vertices
+_automatic_connectors(data::ContractionData) =
+    _automatic_connectors(nv(data.original), nv(data.reduced), ne(data.original))
+
+# Connectors help on small, lightly reduced graphs and clutter large ones.
+function _automatic_connectors(original_vertices, reduced_vertices, original_edges)
+    reduction_ratio = original_vertices / reduced_vertices
+    return original_vertices <= 80 && original_vertices * reduced_vertices <= 300 &&
+           reduction_ratio <= 5 && original_edges <= 5 * original_vertices
+end
+
+# Figure, camera and layer planes shared by the layered plots.
+# Returns the figure, its axis, and the height of each layer, top first.
+function _layer_axis(x, y, layer_count; layer_gap, azimuth, elevation, backgroundcolor,
+                     figure_size, show_planes, plane_color)
+    spanx = max(maximum(x) - minimum(x), eps())
+    spany = max(maximum(y) - minimum(y), eps())
+    span = max(spanx, spany)
+    automatic_azimuth, automatic_elevation = _automatic_view(spanx, spany)
+    resolved_gap = layer_gap === :auto ? clamp(0.65 + 0.08 * log(max(spanx, spany) / min(spanx, spany)), 0.55, 0.9) : layer_gap
+    resolved_azimuth = azimuth === :auto ? automatic_azimuth : azimuth
+    resolved_elevation = elevation === :auto ? automatic_elevation : elevation
+    z_levels = [(layer_count - index) * resolved_gap * span for index in 1:layer_count]
+
+    fig = Figure(size=figure_size, backgroundcolor=backgroundcolor)
+    ax = Axis3(fig[1, 1]; aspect=:data, azimuth=resolved_azimuth, elevation=resolved_elevation,
+               perspectiveness=0.0)
+    hidedecorations!(ax); hidespines!(ax)
+
+    if show_planes
+        padx, pady = 0.06span, 0.06span
+        xs = range(minimum(x)-padx, maximum(x)+padx; length=2)
+        ys = range(minimum(y)-pady, maximum(y)+pady; length=2)
+        for z in z_levels
+            surface!(ax, xs, ys, fill(z - 0.01span, 2, 2);
+                     color=fill(plane_color, 2, 2), shading=NoShading, transparency=true)
+        end
+    end
+    return fig, ax, z_levels
+end
+
+# One line from each vertex down to its community's reduced vertex.
+function _draw_connectors!(ax, vertex_list, membership, x, y, cx, cy, ztop, zbottom,
+                           colors, alpha, width)
+    connectors = Point3f[]
+    connector_colors = Any[]
+    for vertex in vertex_list
+        community = membership[vertex]
+        push!(connectors, Point3f(x[vertex], y[vertex], ztop))
+        push!(connectors, Point3f(cx[community], cy[community], zbottom))
+        color = RGBA(_as_color(colors[community]), alpha)
+        append!(connector_colors, [color, color])
+    end
+    linesegments!(ax, connectors; color=connector_colors, linewidth=width)
+end
+
+function _draw_layer_labels!(ax, x, y, z_levels, labels)
+    for (z, label) in zip(z_levels, labels)
+        text!(ax, minimum(x), maximum(y), z; text=label, align=(:left, :bottom))
+    end
 end
 
 function _edge_segments(graph, x, y, z=0.0; max_edges=:auto)
@@ -117,8 +188,10 @@ function _limited_edges(graph, max_edges)
     return length(graph_edges) <= limit ? graph_edges : graph_edges[1:limit]
 end
 
-function _limited_vertices(graph, max_vertices)
-    graph_vertices = collect(vertices(graph))
+_limited_vertices(graph::AbstractGraph, max_vertices) = _limited_vertices(nv(graph), max_vertices)
+
+function _limited_vertices(vertex_count::Integer, max_vertices)
+    graph_vertices = collect(1:vertex_count)
     limit = max_vertices === :auto ? 1000 : Int(max_vertices)
     limit > 0 || throw(ArgumentError("max_connectors must be positive"))
     return length(graph_vertices) <= limit ? graph_vertices :
@@ -171,33 +244,15 @@ function layeredplot(data::ContractionData;
     k = nv(data.reduced)
     colors = _palette(k, backgroundcolor, palette)
     cx, cy = _reduced_coordinates(data, x, y, reduced_coordinates; layout=layout)
-    spanx = max(maximum(x) - minimum(x), eps())
-    spany = max(maximum(y) - minimum(y), eps())
-    span = max(spanx, spany)
-    automatic_azimuth, automatic_elevation = _automatic_view(spanx, spany)
-    resolved_gap = layer_gap === :auto ? clamp(0.65 + 0.08 * log(max(spanx, spany) / min(spanx, spany)), 0.55, 0.9) : layer_gap
-    resolved_azimuth = azimuth === :auto ? automatic_azimuth : azimuth
-    resolved_elevation = elevation === :auto ? automatic_elevation : elevation
     resolved_connectors = show_connectors === :auto ? _automatic_connectors(data) : show_connectors
-    ztop, zbottom = resolved_gap * span, 0.0
 
     _assert_nonwhite(edge_color, "edge_color")
     _assert_nonwhite(plane_color, "plane_color")
 
-    fig = Figure(size=figure_size, backgroundcolor=backgroundcolor)
-    ax = Axis3(fig[1, 1]; aspect=:data, azimuth=resolved_azimuth, elevation=resolved_elevation,
-               perspectiveness=0.0)
-    hidedecorations!(ax); hidespines!(ax)
-
-    if show_planes
-        padx, pady = 0.06span, 0.06span
-        xs = range(minimum(x)-padx, maximum(x)+padx; length=2)
-        ys = range(minimum(y)-pady, maximum(y)+pady; length=2)
-        for z in (ztop, zbottom)
-            surface!(ax, xs, ys, fill(z - 0.01span, 2, 2);
-                     color=fill(plane_color, 2, 2), shading=NoShading, transparency=true)
-        end
-    end
+    fig, ax, z_levels = _layer_axis(x, y, 2; layer_gap=layer_gap, azimuth=azimuth,
+        elevation=elevation, backgroundcolor=backgroundcolor, figure_size=figure_size,
+        show_planes=show_planes, plane_color=plane_color)
+    ztop, zbottom = z_levels
 
     if edge_width_by === :weight
         _draw_weighted_edges!(ax, data.original, x, y, ztop, edge_color,
@@ -221,21 +276,11 @@ function layeredplot(data::ContractionData;
     scatter!(ax, cx, cy, fill(zbottom, k); color=colors, markersize=cluster_node_size * marker_scale)
 
     if resolved_connectors
-        connectors = Point3f[]
-        connector_colors = Any[]
-        for vertex in _limited_vertices(data.original, max_connectors)
-            community = data.membership[vertex]
-            push!(connectors, Point3f(x[vertex], y[vertex], ztop))
-            push!(connectors, Point3f(cx[community], cy[community], zbottom))
-            append!(connector_colors, [RGBA(colors[community], connector_alpha), RGBA(colors[community], connector_alpha)])
-        end
-        linesegments!(ax, connectors; color=connector_colors, linewidth=connector_width)
+        _draw_connectors!(ax, _limited_vertices(data.original, max_connectors), data.membership,
+                          x, y, cx, cy, ztop, zbottom, colors, connector_alpha, connector_width)
     end
 
-    if show_labels
-        text!(ax, minimum(x), maximum(y), ztop; text=labels[1], align=(:left, :bottom))
-        text!(ax, minimum(x), maximum(y), zbottom; text=labels[2], align=(:left, :bottom))
-    end
+    show_labels && _draw_layer_labels!(ax, x, y, z_levels, labels)
     return fig
 end
 

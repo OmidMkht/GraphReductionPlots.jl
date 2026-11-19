@@ -7,8 +7,12 @@ Reduction research project. The public fixture was extracted in August 2026.
 `line_status.csv` contains the original branch endpoints and status fields;
 the example uses only `from_bus_id` and `to_bus_id`.
 
-The CSV contains 186 branch records. Because Graphs.jl uses a simple graph in
-this example, parallel branches collapse to 179 unique topology edges.
+The CSV contains 186 branch records (179 unique bus pairs; the rest are
+parallel branches). The reduction merges buses without Kron reduction: a line
+inside a cluster disappears and every other line stays unchanged. The example
+therefore uses `merge_data` with all 186 records, so parallel lines survive in
+the reduced network. It also checks that the `internal` column matches the bus
+mapping.
 
 The accompanying image is the source project's IEEE 118-bus reduction result.
 The recorded run reduced 118 buses to 33 representatives and 186 lines to 71

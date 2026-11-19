@@ -13,3 +13,10 @@ Conversion rules:
 The CSV representation removes the MAT.jl dependency and contains only the
 100-node topology and 11-community assignment needed by the visualization
 example. The included PDF is a reference output from the source workflow.
+
+`supernodes.csv` (added November 2026) lists the kept buses of the same
+`red_map100` result: `reduction` marks the 11 super-nodes of the Kron
+reduction (`SN_reduced`), and `radialization` marks the 5 buses that
+radialization restores (`SN_radial` minus `SN_reduced`). With these super-nodes,
+`kron_data(...; radialize=true)` reproduces the source run's 25 Kron edges, its
+restored buses, and its 15 radial edges.

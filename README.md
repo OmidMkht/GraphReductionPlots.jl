@@ -14,7 +14,9 @@ symbols, or the output of your preferred clustering method.
 - animate vertices collapsing into community centroids;
 - export MP4 and GIF through Makie;
 - accept a custom contracted graph for reductions that are not simple
-  quotient graphs;
+  quotient graphs, such as Kron reduction;
+- show node merging without Kron reduction: edges inside a community
+  disappear, every other edge stays unchanged, parallel edges included;
 - use custom coordinates, colors, labels, and display settings.
 
 ## Installation
@@ -51,6 +53,8 @@ runner:
 ```powershell
 julia --project=examples examples/setup.jl
 julia --project=examples examples/run_examples.jl basic
+julia --project=examples examples/run_examples.jl merge
+julia --project=examples examples/run_examples.jl kronradial
 julia --project=examples examples/run_examples.jl transmission
 julia --project=examples examples/run_examples.jl optikron
 julia --project=examples examples/run_examples.jl matrices
@@ -217,14 +221,124 @@ animation = animate_contraction(data; coordinates=(x, y))
 ```
 
 The custom reduced graph must have one vertex per unique community. A representative
-must belong to its corresponding community; representatives determine anchors
-for integrations and future plot styles, while the current visuals use
-community centroids.
+must belong to its corresponding community. Reduced vertices are drawn at
+community centroids by default; pass `reduced_coordinates=:representatives`
+to draw each one at its representative vertex instead.
+
+## Node merging (no Kron reduction)
+
+Some reductions merge vertices and keep the remaining edges as they are. An
+edge with both ends in one community disappears. Every other edge stays and
+joins the two super-nodes. No new edge is created. This is the reduction used
+in transmission-network studies that merge buses into clusters.
+
+A quotient graph is not enough here, because it collapses several edges
+between two communities into one. `merge_data` keeps every edge:
+
+```julia
+# Edge e joins sources[e] and destinations[e]. Edges 2-3 are parallel.
+sources      = [1, 2, 3, 4, 2]
+destinations = [2, 3, 4, 1, 3]
+membership   = [:a, :a, :b, :b]
+
+data = merge_data(sources, destinations, membership)
+internal_edges(data)   # [1, 3]           edges that disappear
+external_edges(data)   # [2, 4, 5]        edges that stay
+reduced_edges(data)    # [(1, 2), (2, 1), (1, 2)]  three edges between a and b
+
+fig = layeredplot(data)
+animation = animate_contraction(data)
+record_animation(animation, "merging.gif")
+```
+
+`merge_data` also accepts a `Graphs.jl` graph, a vector of `(source,
+destination)` pairs, or a matrix (`representation=:adjacency` or
+`:incidence`). Simple graphs and adjacency matrices cannot hold parallel
+edges; use edge vectors, pairs, or an incidence matrix to keep them.
+
+### Equivalent edges
+
+After merging, several edges can join the same two super-nodes. They can be
+replaced by one equivalent edge:
+
+```julia
+equivalent_edges(data)
+# [(ends = (1, 2), edges = [2, 4, 5], weight = 3.0)]
+```
+
+`combine` sets how the weights of parallel edges combine: `:sum` (default,
+for admittance, susceptance, or rating), `:reciprocal` (`1 / sum(1 ./ w)`, for
+reactance or impedance), `:max`, `:mean`, `:count`, or a function.
+
+### Plots and animations
+
+In the layered plot, the edges that disappear are drawn in their community's
+color on the top layer. The bottom layer shows the equivalent edges: an edge
+that replaces parallel edges is darker and thicker (`equivalent_edge_color`);
+a single edge stays gray. Use `parallel_edges=:keep` to draw every edge
+instead, with parallel edges fanned out as arcs.
+
+The animation has three steps:
+
+1. the network starts uncolored, then the clusters take their colors
+   (`color_share` of the time; `color_share=0` skips this step);
+2. the vertices move to their super-node; internal edges shrink and fade,
+   external edges stay and follow their ends;
+3. parallel edges join into their equivalent edge.
+
+`parallel_timing` sets when step 3 happens:
+
+```julia
+# Option 1 (default): parallel edges join while the nodes merge.
+animate_contraction(data; parallel_timing=:with_nodes)
+
+# Option 2: nodes merge first, then the parallel edges join
+# (during the last `line_share` of the animation).
+animate_contraction(data; parallel_timing=:after_nodes, line_share=0.3)
+```
+
+Other options specific to node merging: `internal_edge_color` (`:community`
+or one color), `internal_edge_width`, `uncolored_color`, `parallel_weight`
+(the `combine` rule), `parallel_spread`, and `arc_samples`.
+`edge_width_by=:weight` uses one width scale for original and equivalent
+edges, so their widths can be compared.
+
+## Kron reduction with radialization
+
+`kron_data` describes a Kron-based reduction: each community keeps one
+vertex (its representative) and every other vertex is eliminated. All original
+edges are replaced by Kron edges: two kept vertices are joined when a path links
+them through eliminated vertices only. On a radial network this can create
+cycles. With `radialize=true`, a minimal set of eliminated vertices is brought
+back so the reduced network is radial again (as in Structure-preserving
+Opti-KRON); or pass them yourself with `restored`.
+
+```julia
+data = kron_data(sources, destinations, membership;
+                 representatives=kept_vertices, radialize=true)
+data.reduced_edges   # Kron network between the super-nodes
+data.restored        # vertices brought back by radialization
+data.radial_edges    # radial network on super-nodes, then restored vertices
+
+animation = animate_contraction(data; title="")   # "" hides the title
+record_animation(animation, "kron.mp4"; duration=28, final_hold=2)
+```
+
+The animation starts uncolored, colors the clusters, moves the vertices into
+their super-node while the original edges fade and the Kron edges appear, and
+then radializes: the restored vertices move back out, Kron edges that are not
+radial fade out, and the radial edges fade in. Super-nodes sit on their
+representative vertex. `radial_share` sets the time of the last step.
 
 ## API
 
 - `quotient_graph(graph, membership)` builds a simple unweighted quotient.
 - `contraction_data(...)` validates and normalizes a contraction.
+- `merge_data(...)` describes node merging without Kron reduction;
+  `internal_edges`, `external_edges`, `reduced_edges`, and
+  `equivalent_edges` inspect it.
+- `kron_data(...)` describes a Kron-based reduction, with optional
+  radialization.
 - `layeredplot(...)` returns a Makie `Figure`.
 - `animate_contraction(...)` returns a reusable `ContractionAnimation`.
 - `record_animation(animation, filename; ...)` writes MP4, GIF, or another
@@ -298,7 +412,7 @@ Connectors default to `show_connectors=:auto`; dense or heavily reduced graphs
 hide them automatically. Set `show_connectors=true` or `false` to override
 that choice. Automatic full-graph layouts are `:stress`, `:spring`,
 `:spectral`, and `:sfdp`; reduced coordinates default to full-graph community
-centroids.
+centroids, or `:representatives` for the representative vertices.
 
 ## License
 

@@ -111,10 +111,31 @@ function quotient_graph(graph::AbstractGraph, membership::AbstractVector)
     return quotient
 end
 
-function _edge_weights(graph::AbstractGraph, weights)
-    weights === nothing && return ones(Float64, ne(graph))
-    length(weights) == ne(graph) || throw(DimensionMismatch("edge_weights must match the number of edges"))
+_edge_weights(graph::AbstractGraph, weights) = _edge_weights(ne(graph), weights)
+
+function _edge_weights(edge_count::Integer, weights)
+    weights === nothing && return ones(Float64, edge_count)
+    length(weights) == edge_count || throw(DimensionMismatch("edge_weights must match the number of edges"))
     return Float64.(weights)
+end
+
+# Community labels in first-seen order, and the dense community index of each vertex.
+function _dense_membership(membership)
+    labels = collect(unique(membership))
+    label_index = Dict(label => i for (i, label) in enumerate(labels))
+    return labels, [label_index[label] for label in membership]
+end
+
+# One representative vertex per community. The default is the first member.
+function _representatives(dense, k, representatives)
+    n = length(dense)
+    reps = representatives === nothing ?
+        [findfirst(==(community), dense) for community in 1:k] : Int.(representatives)
+    length(reps) == k || throw(DimensionMismatch("one representative is required per community"))
+    all(1 .<= reps .<= n) || throw(ArgumentError("representatives must be valid vertex indices"))
+    all(dense[reps[i]] == i for i in 1:k) || throw(ArgumentError(
+        "representative i must belong to community i (in first-seen label order)"))
+    return reps
 end
 
 function _contracted_weights(graph, membership, original_weights, contracted, aggregation)
@@ -164,9 +185,7 @@ function contraction_data(graph::AbstractGraph, membership::AbstractVector;
         "membership has $(length(membership)) entries for a $n-vertex graph"))
     isempty(membership) && throw(ArgumentError("membership cannot be empty"))
 
-    labels = collect(unique(membership))
-    label_index = Dict(label => i for (i, label) in enumerate(labels))
-    dense = [label_index[label] for label in membership]
+    labels, dense = _dense_membership(membership)
     k = length(labels)
     reduced !== nothing && contracted !== nothing && throw(ArgumentError(
         "specify only one of reduced or contracted"))
@@ -175,12 +194,7 @@ function contraction_data(graph::AbstractGraph, membership::AbstractVector;
     nv(reduced_graph) == k || throw(DimensionMismatch(
         "reduced graph has $(nv(reduced_graph)) vertices but membership defines $k communities"))
 
-    reps = representatives === nothing ?
-        [findfirst(==(community), dense) for community in 1:k] : Int.(representatives)
-    length(reps) == k || throw(DimensionMismatch("one representative is required per community"))
-    all(1 .<= reps .<= n) || throw(ArgumentError("representatives must be valid vertex indices"))
-    all(dense[reps[i]] == i for i in 1:k) || throw(ArgumentError(
-        "representative i must belong to community i (in first-seen label order)"))
+    reps = _representatives(dense, k, representatives)
 
     original_weights = _edge_weights(graph, edge_weights)
     reduced_weights !== nothing && contracted_weights !== nothing && throw(ArgumentError(

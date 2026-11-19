@@ -7,6 +7,9 @@ const EXAMPLES = Dict(
     "optikron" => "optikron_case100.jl",
     "case100" => "optikron_case100.jl",
     "matrices" => "matrix_inputs.jl",
+    "merge" => "merge_basic.jl",
+    "reduced118" => "transmission_case118_greedy.jl",
+    "kronradial" => "optikron_case100_radial.jl",
 )
 
 function usage(io=stdout)
@@ -17,7 +20,10 @@ function usage(io=stdout)
     println(io)
     println(io, "Examples:")
     println(io, "  basic         Synthetic barbell graph")
-    println(io, "  transmission  IEEE 118-bus transmission contraction")
+    println(io, "  merge         Node merging without Kron reduction (synthetic grid)")
+    println(io, "  transmission  IEEE 118-bus node merging (no Kron reduction)")
+    println(io, "  reduced118    IEEE 118-bus strong merging (10 buses), 30 s videos, both options")
+    println(io, "  kronradial    Opti-KRON 100-node Kron reduction + radialization, 30 s video")
     println(io, "  optikron      Opti-KRON 100-node contraction")
     println(io, "  matrices      Adjacency and incidence matrix inputs")
     println(io, "  all           Run all examples")
@@ -41,7 +47,7 @@ end
 if isempty(ARGS) || ARGS[1] in ("help", "-h", "--help")
     usage()
 elseif ARGS[1] == "all"
-    for name in ("basic", "transmission", "optikron", "matrices")
+    for name in ("basic", "merge", "transmission", "optikron", "matrices")
         run_example(name) || exit(1)
     end
 else

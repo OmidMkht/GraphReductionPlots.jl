@@ -55,7 +55,7 @@ function animate_contraction(data::ContractionData;
     animated_y = lift(p -> (1-p) .* y .+ p .* target_y, progress)
 
     fig = Figure(size=figure_size, backgroundcolor=backgroundcolor)
-    ax = Axis(fig[1, 1]; title=title, aspect=DataAspect())
+    ax = Axis(fig[1, 1]; title=title, titlevisible=!isempty(title), aspect=DataAspect())
     hidedecorations!(ax); hidespines!(ax)
 
     _assert_nonwhite(edge_color, "edge_color")
@@ -85,7 +85,7 @@ function animate_contraction(data::ContractionData;
     end
     scatter!(ax, animated_x, animated_y; color=colors[data.membership],
              markersize=lift(p -> (node_size - 3p) * marker_scale, progress))
-    scatter!(ax, cx, cy; color=lift(p -> [RGBA(color, p) for color in colors], progress),
+    scatter!(ax, cx, cy; color=lift(p -> [RGBA(_as_color(color), p) for color in colors], progress),
              markersize=lift(p -> cluster_node_size * p * marker_scale, progress))
     xpadding = max((maximum(x) - minimum(x)) * 0.05, 1.0e-6)
     ypadding = max((maximum(y) - minimum(y)) * 0.05, 1.0e-6)
@@ -133,7 +133,7 @@ function animate_contraction(sequence::ReductionSequence, coordinates;
     animated_y = lift(p -> trajectory_value(trajectories_y, p), progress)
 
     fig = Figure(size=figure_size, backgroundcolor=:white)
-    ax = Axis(fig[1, 1]; title=title, aspect=DataAspect())
+    ax = Axis(fig[1, 1]; title=title, titlevisible=!isempty(title), aspect=DataAspect())
     hidedecorations!(ax); hidespines!(ax)
     for edge in _limited_edges(original_graph, max_edges)
         lines!(ax,
@@ -151,19 +151,21 @@ function animate_contraction(sequence::ReductionSequence, coordinates;
 end
 
 """
-    record_animation(animation, filename; duration, framerate=30, final_hold=0.5)
+    record_animation(animation, filename; duration, framerate=30, final_hold=0.5, kwargs...)
 
 Record to `.mp4`, `.gif`, or another format supported by the active Makie
 backend. Load and activate `CairoMakie` or `GLMakie` before calling this method.
+`duration` and `final_hold` are in seconds. Other keywords go to Makie's
+`record`; for example `px_per_unit=1` halves the size of a CairoMakie video.
 """
 function record_animation(animation::ContractionAnimation, filename::AbstractString;
                           duration=animation.default_duration, framerate=30,
-                          final_hold=0.5)
+                          final_hold=0.5, kwargs...)
     duration > 0 || throw(ArgumentError("duration must be positive"))
     framerate > 0 || throw(ArgumentError("framerate must be positive"))
     frames = max(2, round(Int, duration * framerate))
     hold = max(0, round(Int, final_hold * framerate))
-    record(animation.figure, filename, 1:(frames + hold); framerate=framerate) do frame
+    record(animation.figure, filename, 1:(frames + hold); framerate=framerate, kwargs...) do frame
         animation.time[] = min(frame - 1, frames - 1) / (frames - 1)
     end
     return filename
@@ -171,12 +173,12 @@ end
 
 function record_animation(animation::ReductionSequenceAnimation, filename::AbstractString;
                           duration=animation.default_duration, framerate=30,
-                          final_hold=0.5)
+                          final_hold=0.5, kwargs...)
     duration > 0 || throw(ArgumentError("duration must be positive"))
     framerate > 0 || throw(ArgumentError("framerate must be positive"))
     frames = max(2, round(Int, duration * framerate))
     hold = max(0, round(Int, final_hold * framerate))
-    record(animation.figure, filename, 1:(frames + hold); framerate=framerate) do frame
+    record(animation.figure, filename, 1:(frames + hold); framerate=framerate, kwargs...) do frame
         animation.time[] = min(frame - 1, frames - 1) / (frames - 1)
     end
     return filename
